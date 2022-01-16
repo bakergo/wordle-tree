@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 
-WORDLIST=set()
-with open('words.txt', 'r') as f:
+GUESSES=set()
+ANSWERS=set()
+
+with open('guesses.txt', 'r') as f:
     for line in f:
-        WORDLIST.add(line.lower().strip())
+        GUESSES.add(line.lower().strip())
+with open('answers.txt', 'r') as f:
+    for line in f:
+        ANSWERS.add(line.lower().strip())
 
 
 def posmap(string):
@@ -32,9 +37,9 @@ def score(guess, against):
 
 def main():
     guessmin = {}
-    for word in WORDLIST:
+    for word in GUESSES:
         wordscores = {}
-        for word2 in WORDLIST:
+        for word2 in ANSWERS:
             wordscore = score(word, word2)
             if wordscore in wordscores:
                 wordscores[wordscore] += 1
