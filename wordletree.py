@@ -69,10 +69,10 @@ def guess_word_path(answer, hard_mode=False):
         print("Guess %d: %s %s" % (guesses, guess, next_score))
         if next_score == (2,2,2,2,2):
             print("%s is the word. Got it in %d" % (guess, guesses))
-            return
+            return guesses
         elif guesses >= 6:
             print("Couldn't get it sadge")
-            return
+            return -1
         guesses += 1
         valid_answers = [word for word in valid_answers if score(guess, word) == next_score]
         if hard_mode:
@@ -82,10 +82,40 @@ def guess_word_path(answer, hard_mode=False):
         else:
             guess = next_guess(valid_guesses, valid_answers)
 
+
+def make_hist(hard_mode=False):
+    beaten_by = set()
+    hist = dict()
+    for x in range(-1,7):
+        hist[x] = 0
+    for word in ANSWERS:
+        guesses = guess_word_path(word, hard_mode=hard_mode)
+        hist[guesses] += 1
+        if guesses < 0:
+            beaten_by.add(word)
+    return hist, beaten_by
+
+
+def print_hist(hist, hard_mode=False):
+    print("%s mode histogram" % ("Hard" if hard_mode else "Easy"))
+    for k in range(-1, 7):
+        if k in hist:
+            print("%-4s: %d" % ("fail" if k==-1 else str(k), hist[k]))
+
 def main():
-    #TODO: Take the correct word as an arg
-    # I'm on github. Hi mom!
-    guess_word_path('himom', False)
+    easy_hist, easy_beaten_by = make_hist(False)
+    hard_hist, hard_beaten_by = make_hist(False)
+    if easy_beaten_by:
+        print("Beaten by these words on easy:")
+        for word in easy_beaten_by:
+            print(word)
+    print_hist(easy_hist, hard_mode=False)
+    if hard_beaten_by:
+        print("Beaten by these words on hard:")
+        for word in hard_beaten_by:
+            print(word)
+    print_hist(hard_hist, hard_mode=True)
+    print("fin")
 
 main()
 
