@@ -40,14 +40,34 @@ def score(guess, against):
 
     return tuple(r)
 
+
+BUCKETS = {}
+def precompute_buckets():
+    for guess in tqdm.tqdm(GUESSES, unit="guess", postfix="pre-bucketing", leave=False, ncols=120, mininterval=1):
+        BUCKETS[guess] = _bucket(guess, ANSWERS)
+
+
 def bucket(guess, answers):
+    if not BUCKETS:
+        precompute_buckets()
+    buckets = BUCKETS[guess]
+    aset = set(answers)
+    ret = {}
+    for s, w in buckets.items():
+        r = w & aset
+        if r:
+            ret[s] = r
+    return ret
+
+
+def _bucket(guess, answers):
     buckets = {}
     for word in answers:
         wordscore = score(guess, word)
         if wordscore in buckets:
-            buckets[wordscore] += [word]
+            buckets[wordscore].add(word)
         else:
-            buckets[wordscore] = [word]
+            buckets[wordscore] = set([word])
     return buckets
 
 
@@ -67,20 +87,22 @@ def get_best_guess(guesses, answers, hard_mode, beat, top_level=False, position=
     best_tree = {}
 
     t=tqdm.tqdm(total=len(guesses), position=position, unit="guess", leave=False, postfix=postfix, ncols=120, mininterval=1)
-    guess_stack=random.sample(list(guesses), k=len(guesses))
-    visited=set()
-    while guess_stack:
+    guess_order = []
+    for guess in guesses:
+        distr = bucket(guess, answers)
+        weight = max((len(words) for wordscore,words in distr.items()))
+        guess_order.append((weight, guess, distr))
+    guess_order.sort(reverse=True)
+
+    # guess_stack=random.sample(list(guesses), k=len(guesses))
+    while guess_order:
         if best_guess_depth <= math.ceil(math.log(len(answers), 243)) and best_guess:
             # Theoretically impossible to beat this guess.
             break
-        guess = guess_stack.pop()
-        if guess in visited:
-            continue
+        weight, guess, distr = guess_order.pop()
         t.update(n=1)
-        visited.add(guess)
         guess_tree = {}
         guess_depth = float('-inf')
-        distr = bucket(guess, answers)
         for score, next_words in distr.items():
             if hard_mode:
                 next_guesses = filter_words(score, guess, guesses)
@@ -95,8 +117,6 @@ def get_best_guess(guesses, answers, hard_mode, beat, top_level=False, position=
                 guess_depth = depth
             if guess_depth >= best_guess_depth:
                 break
-            if next_guess not in visited:
-                guess_stack.append(next_guess)
             guess_tree[score] = (next_guess, tree)
         if guess_depth < best_guess_depth:
             best_guess_depth = guess_depth
