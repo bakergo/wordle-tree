@@ -54,7 +54,7 @@ def bucket(guess, answers):
 def filter_words(wordscore, guess, words):
     return [word for word in words if score(guess, word) == wordscore]
 
-def get_stacky_best_guess(guesses, answers, hard_mode, beat, top_level=False, position=0, postfix=""):
+def get_best_guess(guesses, answers, hard_mode, beat, top_level=False, position=0, postfix=""):
     # Only one answer exists. Guess it
     if len(answers) == 1:
         answer = next(iter(answers))
@@ -86,56 +86,17 @@ def get_stacky_best_guess(guesses, answers, hard_mode, beat, top_level=False, po
                 next_guesses = filter_words(score, guess, guesses)
             else:
                 next_guesses = guesses
-            depth, next_guess, tree = get_stacky_best_guess(next_guesses, next_words, hard_mode, best_guess_depth-1, position=position+1, postfix=guess)
-            if next_guess is None:
-                # Did not solve it.
-                guess_depth = best_guess_depth + 1
-                break
-            if depth > guess_depth:
-                guess_depth = depth
-            if guess_depth > best_guess_depth:
-                break
-            elif next_guess not in visited:
-                guess_stack.append(next_guess)
-            guess_tree[score] = (next_guess, tree)
-        if guess_depth < best_guess_depth:
-            best_guess_depth = guess_depth
-            best_guess = guess
-            best_tree = guess_tree
-    return best_guess_depth + 1, best_guess, best_tree
-
-def get_best_guess(guesses, answers, hard_mode, beat, top_level=False, position=0, postfix=""):
-    # Only one answer exists. Guess it
-    if len(answers) == 1:
-        answer = next(iter(answers))
-        return 1, answer, {answer:None}
-    # Beat is 0 or 1 and we can't get it in 1.
-    if beat < 2:
-        return 2, None, None
-    best_guess_depth = beat
-    best_guess = None
-    best_tree = {}
-    for guess in tqdm.tqdm(guesses, position=position, unit="guess", leave=False, postfix=postfix):
-        # This guess leads to a next-guess win
-        if best_guess_depth <= 1:
-            break
-        guess_tree = {}
-        guess_depth = float('-inf')
-        distr = bucket(guess, answers)
-        for score, next_words in distr.items():
-            if hard_mode:
-                next_guesses = filter_words(score, guess, guesses)
-            else:
-                next_guesses = guesses
             depth, next_guess, tree = get_best_guess(next_guesses, next_words, hard_mode, best_guess_depth-1, position=position+1, postfix=guess)
             if next_guess is None:
                 # Did not solve it.
-                guess_depth = best_guess_depth + 1
+                guess_depth = beat
                 break
             if depth > guess_depth:
                 guess_depth = depth
-            if guess_depth > best_guess_depth:
+            if guess_depth >= best_guess_depth:
                 break
+            if next_guess not in visited:
+                guess_stack.append(next_guess)
             guess_tree[score] = (next_guess, tree)
         if guess_depth < best_guess_depth:
             best_guess_depth = guess_depth
@@ -209,8 +170,9 @@ def print_hist(hist, hard_mode=False):
         if k in hist:
             print("%-4s: %d" % ("fail" if k==-1 else str(k), hist[k]))
 
+
 def solve_wordle():
-    depth,guess,tree = get_stacky_best_guess(ANSWERS, ANSWERS, hard_mode=False, beat=5, top_level=True)
+    depth,guess,tree = get_best_guess(GUESSES, ANSWERS, hard_mode=False, beat=5, top_level=True)
     print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
     print("The guess tree follows:")
     print(tree)
