@@ -109,7 +109,7 @@ def get_any_guess(guesses, answers, hard_mode, beat, top_level=False, position=0
                 next_guesses = filter_words(score, guess, guesses)
             else:
                 next_guesses = guesses
-            depth, next_guess, tree = get_best_guess(next_guesses, next_words, hard_mode, best_guess_depth-1, position=position+1, postfix=guess)
+            depth, next_guess, tree = get_any_guess(next_guesses, next_words, hard_mode, best_guess_depth-1, position=position+1, postfix=guess)
             if next_guess is None:
                 # Did not solve it.
                 guess_depth = beat
@@ -244,11 +244,15 @@ def print_hist(hist, hard_mode=False):
 
 
 def any_wordle():
-    depth,guess,tree = get_any_guess(GUESSES, ANSWERS, hard_mode=False, beat=5, top_level=True)
-    print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
-    print("The guess tree follows:")
-    print(tree)
-    print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
+    depth,guess,tree = get_any_guess(GUESSES, ANSWERS, hard_mode=False, beat=4, top_level=True)
+    if guess:
+        print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
+        print("The guess tree follows:")
+        print(tree)
+        print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
+    else:
+        print("No solution exists for wordle in %d guesses." % depth)
+
 def solve_wordle():
     depth,guess,tree = get_best_guess(GUESSES, ANSWERS, hard_mode=False, beat=5, top_level=True)
     print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
