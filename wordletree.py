@@ -21,13 +21,13 @@ def posmap(string):
 
 def score(guess, against):
     '''Return a tuple of 5 integers representing the score of this word against the list'''
-    r = [0] * 5
+    r = ['.'] * 5
     guessletters = posmap(guess)
     againstletters = posmap(against)
 
     for k,v in guessletters.copy().items():
         if v == againstletters[k]:
-            r[k] = 2
+            r[k] = 'G'
             del againstletters[k]
             del guessletters[k]
 
@@ -35,10 +35,10 @@ def score(guess, against):
         for kb, vb in againstletters.items():
             if v == vb:
                 del againstletters[kb]
-                r[k] = 1
+                r[k] = 'y'
                 break
 
-    return tuple(r)
+    return ''.join(r)
 
 
 BUCKETS = {}
@@ -79,10 +79,10 @@ def get_any_better_guess(guesses, answers, beat, position=0, postfix="root"):
     # Only one answer exists. Guess it
     if len(answers) == 1:
         answer = next(iter(answers))
-        return 1, answer, {answer:None}
+        return 1, answer, None
     # Impossible benchmark, fail.
     if math.log(len(answers), 243) + 1 >= beat:
-        return 1, None, {}
+        return 1, None, None
     upper_bound = beat-1
     best_guess = None
     best_tree = {}
@@ -104,29 +104,28 @@ def get_any_better_guess(guesses, answers, beat, position=0, postfix="root"):
         weight, guess, distr = guess_order.pop()
         t.update(n=1)
         guess_tree = {}
-        guess_total = 0.
+        guess_average = 0.
         t2=tqdm.tqdm(total=len(distr), position=position+1, unit="guess", leave=False, postfix=guess, ncols=120, mininterval=1)
         for score, next_words in distr.items():
+            t2.update(n=1)
             # Filter the available guesses for hard mode.
             next_guesses = guesses
-            next_guess_average, next_guess, tree = get_any_better_guess(next_guesses, next_words, upper_bound, position=position+2, postfix=score)
+            budget = upper_bound - guess_average
+            next_guess_average, next_guess, tree = get_any_better_guess(next_guesses, next_words, budget, position=position+2, postfix=score)
             if next_guess is None:
                 # Did not solve it.
-                guess_total = 200000000
+                guess_average = 200000000
                 break
-            guess_total += next_guess_average
-            if float(guess_total) / len(distr) > upper_bound:
-                guess_total = 200000000
+            guess_average += float(next_guess_average) / len(distr)
+            if guess_average > upper_bound:
+                guess_average = 200000000
                 break
-            t2.update(n=1)
             guess_tree[score] = (next_guess, tree)
-        guess_average = guess_total / len(distr)
-        if guess_average < upper_bound:
+        if guess_average <= upper_bound:
             # This guess beat the current best.
             upper_bound = guess_average
             best_guess = guess
             best_tree = guess_tree
-            break
         if upper_bound <= 1 and best_guess:
             # Optimal
             break
