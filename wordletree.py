@@ -74,107 +74,63 @@ def _bucket(guess, answers):
 def filter_words(wordscore, guess, words):
     return [word for word in words if score(guess, word) == wordscore]
 
-def get_any_guess(guesses, answers, hard_mode, beat, top_level=False, position=0, postfix=""):
-    '''Return any solution which beats `beat`'''
+def get_any_better_guess(guesses, answers, beat, position=0, postfix="root"):
+    """Returns a tree with the minimum total guesses required."""
     # Only one answer exists. Guess it
     if len(answers) == 1:
         answer = next(iter(answers))
         return 1, answer, {answer:None}
-    # Beat is too small; we can't get it.
-    if beat < math.ceil(math.log(len(answers), 243)) + 1:
-        return beat+1, None, None
-    best_guess_depth = beat
+    # Impossible benchmark, fail.
+    if math.log(len(answers), 243) + 1 >= beat:
+        return 1, None, {}
+    upper_bound = beat-1
     best_guess = None
     best_tree = {}
 
-    t=tqdm.tqdm(total=len(guesses), position=position, unit="guess", leave=False, postfix=postfix, ncols=120, mininterval=1)
+    # For each guess, break the answers down into buckets by guess, then
+    # look for the most promising guess - the one with the lowest maximum
+    # bucket size.
     guess_order = []
     for guess in guesses:
         distr = bucket(guess, answers)
-        weight = max((len(words) for wordscore,words in distr.items()))
+        weight = sum((len(words)**2 for wordscore,words in distr.items()))
         guess_order.append((weight, guess, distr))
     guess_order.sort(reverse=True)
-
-    # guess_stack=random.sample(list(guesses), k=len(guesses))
-    while guess_order and best_guess_depth >= beat:
-        if best_guess_depth <= math.ceil(math.log(len(answers), 243)) and best_guess:
-            # Theoretically impossible to beat this guess.
-            break
-        weight, guess, distr = guess_order.pop()
-        t.update(n=1)
-        guess_tree = {}
-        guess_depth = float('-inf')
-        for score, next_words in distr.items():
-            if hard_mode:
-                next_guesses = filter_words(score, guess, guesses)
-            else:
-                next_guesses = guesses
-            depth, next_guess, tree = get_any_guess(next_guesses, next_words, hard_mode, best_guess_depth-1, position=position+1, postfix=guess)
-            if next_guess is None:
-                # Did not solve it.
-                guess_depth = beat
-                break
-            if depth > guess_depth:
-                guess_depth = depth
-            if guess_depth >= best_guess_depth:
-                break
-            guess_tree[score] = (next_guess, tree)
-        if guess_depth < best_guess_depth:
-            best_guess_depth = guess_depth
-            best_guess = guess
-            best_tree = guess_tree
-    return best_guess_depth + 1, best_guess, best_tree
-
-
-def get_best_guess(guesses, answers, hard_mode, beat, top_level=False, position=0, postfix=""):
-    # Only one answer exists. Guess it
-    if len(answers) == 1:
-        answer = next(iter(answers))
-        return 1, answer, {answer:None}
-    # Beat is too small; we can't get it.
-    if beat < math.ceil(math.log(len(answers), 243)) + 1:
-        return beat+1, None, None
-    best_guess_depth = beat
-    best_guess = None
-    best_tree = {}
-
-    t=tqdm.tqdm(total=len(guesses), position=position, unit="guess", leave=False, postfix=postfix, ncols=120, mininterval=1)
-    guess_order = []
-    for guess in guesses:
-        distr = bucket(guess, answers)
-        weight = max((len(words) for wordscore,words in distr.items()))
-        guess_order.append((weight, guess, distr))
-    guess_order.sort(reverse=True)
+    guess_order = guess_order[-len(guesses)//100:]
+    t=tqdm.tqdm(total=len(guess_order), position=position, unit="bucket", leave=False, postfix=postfix, ncols=120, mininterval=1)
 
     # guess_stack=random.sample(list(guesses), k=len(guesses))
     while guess_order:
-        if best_guess_depth <= math.ceil(math.log(len(answers), 243)) and best_guess:
-            # Theoretically impossible to beat this guess.
-            break
         weight, guess, distr = guess_order.pop()
         t.update(n=1)
         guess_tree = {}
-        guess_depth = float('-inf')
+        guess_total = 0.
+        t2=tqdm.tqdm(total=len(distr), position=position+1, unit="guess", leave=False, postfix=guess, ncols=120, mininterval=1)
         for score, next_words in distr.items():
-            if hard_mode:
-                next_guesses = filter_words(score, guess, guesses)
-            else:
-                next_guesses = guesses
-            depth, next_guess, tree = get_best_guess(next_guesses, next_words, hard_mode, best_guess_depth-1, position=position+1, postfix=guess)
+            # Filter the available guesses for hard mode.
+            next_guesses = guesses
+            next_guess_average, next_guess, tree = get_any_better_guess(next_guesses, next_words, upper_bound, position=position+2, postfix=score)
             if next_guess is None:
                 # Did not solve it.
-                guess_depth = beat
+                guess_total = 200000000
                 break
-            if depth > guess_depth:
-                guess_depth = depth
-            if guess_depth >= best_guess_depth:
+            guess_total += next_guess_average
+            if float(guess_total) / len(distr) > upper_bound:
+                guess_total = 200000000
                 break
+            t2.update(n=1)
             guess_tree[score] = (next_guess, tree)
-        if guess_depth < best_guess_depth:
-            best_guess_depth = guess_depth
+        guess_average = guess_total / len(distr)
+        if guess_average < upper_bound:
+            # This guess beat the current best.
+            upper_bound = guess_average
             best_guess = guess
             best_tree = guess_tree
-    return best_guess_depth + 1, best_guess, best_tree
+            break
+        if upper_bound <= 1 and best_guess:
+            # Optimal
+            break
+    return upper_bound + 1, best_guess, best_tree
 
 
 def next_guess(guesses, answers):
@@ -243,22 +199,12 @@ def print_hist(hist, hard_mode=False):
             print("%-4s: %d" % ("fail" if k==-1 else str(k), hist[k]))
 
 
-def any_wordle():
-    depth,guess,tree = get_any_guess(GUESSES, ANSWERS, hard_mode=False, beat=4, top_level=True)
-    if guess:
-        print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
-        print("The guess tree follows:")
-        print(tree)
-        print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
-    else:
-        print("No solution exists for wordle in %d guesses." % depth)
-
 def solve_wordle():
-    depth,guess,tree = get_best_guess(GUESSES, ANSWERS, hard_mode=False, beat=5, top_level=True)
-    print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
+    depth,guess,tree = get_any_better_guess(GUESSES, ANSWERS, beat=7.)
+    print("A solution exists for wordle in %f guesses, with %s as the start." % (depth, guess))
     print("The guess tree follows:")
     print(tree)
-    print("A solution exists for wordle in %d guesses, with %s as the start." % (depth, guess))
+    print("A solution exists for wordle in %f guesses, with %s as the start." % (depth, guess))
 
 
 def do_histograms():
@@ -278,8 +224,8 @@ def do_histograms():
 
 def main():
     # do_histograms()
-    # solve_wordle()
-    any_wordle()
+    solve_wordle()
+    # any_wordle()
 
 main()
 
