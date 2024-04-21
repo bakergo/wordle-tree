@@ -71,10 +71,7 @@ def _bucket(guess, answers):
     return buckets
 
 
-def filter_words(wordscore, guess, words):
-    return [word for word in words if score(guess, word) == wordscore]
-
-def get_any_better_guess(guesses, answers, beat, max_depth=6, position=0, postfix="root"):
+def get_any_better_guess(guesses, answers, beat, max_depth=6, postfix="root"):
     """Returns a tree with the minimum total guesses required."""
     # Only one answer exists. Guess it
     if len(answers) == 1:
@@ -97,35 +94,34 @@ def get_any_better_guess(guesses, answers, beat, max_depth=6, position=0, postfi
         distr = bucket(guess, answers)
         weight = sum((len(words)*math.log(len(words), 2) for wordscore,words in distr.items()))
         guess_order.append((weight, guess, distr))
-    guess_order.sort(reverse=True)
-    guess_order = guess_order[-len(guesses)//100:]
-    t=tqdm.tqdm(total=len(guess_order), position=position, unit="bucket", leave=False, postfix=postfix, ncols=120)
+    guess_order.sort()
+    guess_order = guess_order[:len(guesses)//100]
 
     # guess_stack=random.sample(list(guesses), k=len(guesses))
-    while guess_order:
-        weight, guess, distr = guess_order.pop()
-        t.update(n=1)
+    for (weight, guess, distr) in tqdm.tqdm(guess_order, unit="bucket", leave=False, postfix=postfix, ncols=120):
         guess_tree = {}
         guess_total = 0.
         guessed_count = 0
         len_distr = len(distr)
-        t2=tqdm.tqdm(total=len(distr), position=position+1, unit="guess", leave=False, postfix=guess, ncols=120)
-        for score, next_words in distr.items():
-            t2.update(n=1)
+        for (score, next_words) in tqdm.tqdm(distr.items(),
+                      total=len(distr),
+                      unit="guess",
+                      leave=False,
+                      postfix=guess,
+                                           ncols=120):
             next_guesses = guesses
-
             # Trim down the guess budget for the subcall based on the number of items in this
             # bucket.
             # If each child takes on average upper_bound, we hit the budget.
-            total_budget_for_kids = upper_bound * len_distr
-            # There are len_distr - 1 other buckets. They can take at minimum 1.
-            # Other guesses are included in guess_total
-            total_budget_for_kids -= len_distr - guessed_count - 1
-            # guess_total budget has already been used.
-            total_budget_for_kids -= guess_total
+            total_budget_for_kids = (upper_bound * len_distr
+                                     # There are len_distr - 1 other buckets. They can take at minimum 1.
+                                     # Other guesses are included in guess_total
+                                     -(len_distr - guessed_count - 1)
+                                     # guess_total budget has already been used.
+                                     -guess_total)
             # Use no more than max_depth - 1
             budget = min(total_budget_for_kids, max_depth - 1)
-            next_guess_average, next_guess, tree = get_any_better_guess(next_guesses, next_words, budget, max_depth=max_depth-1, position=position+2, postfix=score)
+            next_guess_average, next_guess, tree = get_any_better_guess(next_guesses, next_words, budget, max_depth=max_depth-1, postfix=score)
             guessed_count += 1
             if next_guess is None:
                 # This bucket is unsolveable in the budget and depth
