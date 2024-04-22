@@ -98,11 +98,15 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
     guess_order.sort()
     guess_order = guess_order[:min(len(guess_order), len(guesses_in_question)//10)]
     optimal_for_distr = 0.
+    guessed = set()
     # guess_stack=random.sample(list(guesses), k=len(guesses))
     for (weight, guess, distr) in tqdm.tqdm(guess_order, unit="guess", leave=False, postfix=postfix, ncols=120):
         if upper_bound < len(answers):
             # Return if an optimal solution to bucket is found.
             break
+        if guess in guessed:
+            continue
+        guessed.add(guess)
         guess_tree = {}
         guess_total = 1.
         answered = 0
