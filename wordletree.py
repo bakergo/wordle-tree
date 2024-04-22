@@ -3,7 +3,10 @@
 import tqdm
 import random
 import math
+import functools
+import random
 
+SCOREMAP={}
 GUESSES=set()
 ANSWERS=set()
 
@@ -16,10 +19,11 @@ with open('answers.txt', 'r') as f:
 
 GUESSES.update(ANSWERS)
 
-def posmap(string):
+def posmap(string:str):
     return {i:string[i] for i in range(len(string))}
 
-def score(guess, against):
+# @functools.cache
+def score(guess:str, against:str):
     '''Return a tuple of 5 integers representing the score of this word against the list'''
     r = ['.'] * 5
     guessletters = posmap(guess)
@@ -41,25 +45,16 @@ def score(guess, against):
     return ''.join(r)
 
 
-BUCKETS = {}
-def precompute_buckets():
-    for guess in tqdm.tqdm(GUESSES, unit="guess", postfix="pre-bucketing", leave=False, ncols=120, mininterval=1):
-        BUCKETS[guess] = _bucket_small(guess, ANSWERS)
-
 def bucket(guess:str, answers: set):
-    if not BUCKETS:
-        precompute_buckets()
-    buckets = BUCKETS[guess]
-    return {score: a for score, words in buckets.items() if (a := words & answers)}
+    return _bucket_small(guess, answers)
 
-def _bucket_small(guess, answers:set):
+def _bucket_small(guess:str, answers: set):
     buckets = {}
-    for word in answers:
-        wordscore = score(guess, word)
-        if wordscore in buckets:
-            buckets[wordscore].add(word)
-        else:
-            buckets[wordscore] = set([word])
+    for answer in answers:
+        wordscore = score(guess, answer)
+        if wordscore not in buckets:
+            buckets[wordscore] = set()
+        buckets[wordscore].add(answer)
     return buckets
 
 
@@ -77,18 +72,28 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
     best_guess = None
     best_tree = {}
 
+    # Randomly select some percentage of guesses along with up to 40 answers and rank those only.
+    guesses_in_question = []
+    guesses_in_question.extend(random.sample(answers, min(len(answers), 32)))
+    guesses_in_question.extend(random.sample(guesses, len(guesses)//10))
+    # guesses_in_question = set(guesses_in_question)
+
     # For each guess, break the answers down into buckets by guess, then
     # look for the most promising guess - the one with the lowest maximum
     # bucket size.
     guess_order = []
-    for guess in guesses:
+    for guess in tqdm.tqdm(guesses_in_question, unit="guess", leave=False, postfix="bucketing", ncols=120):
         distr = bucket(guess, answers)
         weight = sum((len(words)*math.log(len(words), 2) for wordscore,words in distr.items()))
         if guess in answers:
             weight -= 1
         guess_order.append((weight, guess, distr))
+        if len(distr) >= len(answers):
+            # Stop considering alternatives if the list is full. Because answers are ordered before
+            # non-answer guesses, this will always find an optimal solution if it exists
+            break
     guess_order.sort()
-    guess_order = guess_order[:len(guesses)//100]
+    guess_order = guess_order[:min(len(guess_order), len(guesses_in_question)//10)]
     optimal_for_distr = 0.
     # guess_stack=random.sample(list(guesses), k=len(guesses))
     for (weight, guess, distr) in tqdm.tqdm(guess_order, unit="guess", leave=False, postfix=postfix, ncols=120):
@@ -153,6 +158,7 @@ def solve_wordle():
 
 
 def main():
+    # precompute_buckets()
     solve_wordle()
 
 main()
