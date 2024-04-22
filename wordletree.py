@@ -68,13 +68,16 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
         return 1, answer, None
     if math.log(len(answers), 243) + 1 >= min(beat, max_depth):
         return 1, None, None
+    if len(answers) > beat:
+        return 1, None, None
     upper_bound = beat
+    best_score = float('inf')
     best_guess = None
     best_tree = {}
 
     # Randomly select some percentage of guesses along with up to 40 answers and rank those only.
     guesses_in_question = []
-    guesses_in_question.extend(random.sample(answers, min(len(answers), 32)))
+    guesses_in_question.extend(answers)
     guesses_in_question.extend(random.sample(guesses, len(guesses)//10))
     # guesses_in_question = set(guesses_in_question)
 
@@ -97,6 +100,9 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
     optimal_for_distr = 0.
     # guess_stack=random.sample(list(guesses), k=len(guesses))
     for (weight, guess, distr) in tqdm.tqdm(guess_order, unit="guess", leave=False, postfix=postfix, ncols=120):
+        if upper_bound < len(answers):
+            # Return if an optimal solution to bucket is found.
+            break
         guess_tree = {}
         guess_total = 1.
         answered = 0
@@ -119,8 +125,6 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
                 next_guess_total, next_guess, tree = (0, guess, None)
             elif guess_total + len(next_words) > upper_bound:
                 next_guess_total, next_guess, tree = (float('inf'), None, None)
-            elif guess_total + len(next_words) == upper_bound and best_guess:
-                next_guess_total, next_guess, tree = (float('inf'), None, None)
             else:
                 next_guess_total, next_guess, tree = get_any_better_guess(next_guesses, next_words, budget, max_depth=max_depth-1, postfix="%s (%d words)" % (score, len(next_words)))
 
@@ -138,23 +142,23 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
                 guess_tree[score] = (next_guess, tree)
             else:
                 guess_tree[score] = (next_guess)
+        # TODO: Track guess_total separately from upper_bound. Use upper_bound - 1 for the next
+        # guesses.
         if guess_total <= upper_bound:
             # This guess beat the current best.
-            upper_bound = guess_total
+            upper_bound = guess_total - 1
+            best_score = guess_total
             best_guess = guess
             best_tree = guess_tree
-        if upper_bound <= len(answers) and best_guess:
-            # Return if an optimal solution to bucket is found.
-            break
-    return upper_bound, best_guess, best_tree
+    return best_score, best_guess, best_tree
 
 
 def solve_wordle():
     depth,guess,tree = get_any_better_guess(GUESSES, ANSWERS, beat=float('inf'))
-    print("A solution exists for wordle in %f guesses, with %s as the start." % (depth/len(GUESSES), guess))
+    print("A solution exists for wordle in %d total guesses, with %s as the start." % (depth, guess))
     print("The guess tree follows:")
     print((guess, tree))
-    print("A solution exists for wordle in %f guesses, with %s as the start." % (depth/len(GUESSES), guess))
+    print("A solution exists for wordle in %d total guesses, with %s as the start." % (depth, guess))
 
 
 def main():
