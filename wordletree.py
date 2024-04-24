@@ -55,7 +55,13 @@ def _bucket_small(guess:str, answers: set):
         if wordscore not in buckets:
             buckets[wordscore] = set()
         buckets[wordscore].add(answer)
-    return buckets
+    if len(buckets) > 64:
+        bucket_list = [(len(words),score,words) for score,words in buckets.items()]
+        bucket_list.sort()
+        bucket_list = [(score, words) for _, score, words in bucket_list]
+    else:
+        bucket_list = [(score, words) for score, words in buckets.items()]
+    return bucket_list
 
 
 def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root"):
@@ -84,21 +90,26 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
     # For each guess, break the answers down into buckets by guess, then
     # look for the most promising guess - the one with the lowest maximum
     # bucket size.
+    guessed = set()
     guess_order = []
     for guess in tqdm.tqdm(guesses_in_question, unit="guess", leave=False, postfix="bucketing", ncols=120):
+        if guess in guessed:
+            continue
+        guessed.add(guess)
         distr = bucket(guess, answers)
-        weight = sum((len(words)*math.log(len(words), 2) for wordscore,words in distr.items()))
-        if guess in answers:
-            weight -= 1
+        weight = sum((len(words)*math.log(len(words), 2) for wordscore,words in distr))
         guess_order.append((weight, guess, distr))
         if len(distr) >= len(answers):
             # Stop considering alternatives if the list is full. Because answers are ordered before
             # non-answer guesses, this will always find an optimal solution if it exists
             break
+    answers_sorted = guess_order[:len(answers)]
+    guess_order = sorted(guess_order[len(answers):])
+    guess_order = answers_sorted + guess_order
     guess_order.sort()
-    guess_order = guess_order[:min(len(guess_order), len(guesses_in_question)//10)]
+    guess_order = guess_order[:50]
     optimal_for_distr = 0.
-    guessed = set()
+    guessed.clear()
     # guess_stack=random.sample(list(guesses), k=len(guesses))
     for (weight, guess, distr) in tqdm.tqdm(guess_order, unit="guess", leave=False, postfix=postfix, ncols=120):
         if upper_bound < len(answers):
@@ -110,19 +121,20 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
         guess_tree = {}
         guess_total = 1.
         answered = 0
-        for (score, next_words) in tqdm.tqdm(distr.items(),
+        for (score, next_words) in tqdm.tqdm(distr,
                                              total=len(distr),
                                              unit="bucket",
                                              leave=False,
-                                             postfix=guess,
+                                             postfix="%s; best: %s" % (guess, best_guess),
                                              ncols=120):
             next_guesses = guesses
             # Trim down the guess budget for the subcall based on the number of items in this
             # bucket. If each child takes on average upper_bound, we hit the budget.
-            # * Remove the used budget
-            # * subtract 1 for each remaining guess
-            # * Add enough to cover this guess
-            total_budget_for_kids = upper_bound - guess_total - len(answers) + answered + len(distr)
+            # * Remove the used budget (upper_bound - guess_total)
+            # * subtract 1 for each other guess not covered (len(answers) - answered + next_words + 1)
+            total_budget_for_kids = upper_bound - guess_total - len(answers) + answered + len(next_words) + 1
+            if total_budget_for_kids > upper_bound:
+                raise Exception("bound: %d < budget: %d; total: %d len: %d answered: %d distr: %d, next_words: %d" % (upper_bound, total_budget_for_kids, guess_total, len(answers), answered, len(distr), len(next_words)))
             # Use no more than max_depth - 1
             budget = total_budget_for_kids
             if score == 'GGGGG':
@@ -148,7 +160,7 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
                 guess_tree[score] = (next_guess)
         # TODO: Track guess_total separately from upper_bound. Use upper_bound - 1 for the next
         # guesses.
-        if guess_total <= upper_bound:
+        if guess_total < best_score:
             # This guess beat the current best.
             upper_bound = guess_total - 1
             best_score = guess_total
