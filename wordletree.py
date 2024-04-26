@@ -86,7 +86,6 @@ def get_any_better_guess(guesses, answers, beat, max_depth=6):
     guesses_in_question = []
     guesses_in_question.extend(answers)
     guesses_in_question.extend(random.sample(guesses, len(guesses)//10))
-    # guesses_in_question = set(guesses_in_question)
 
     # For each guess, break the answers down into buckets by guess, then
     # look for the most promising guess - the one with the lowest maximum
@@ -112,7 +111,6 @@ def get_any_better_guess(guesses, answers, beat, max_depth=6):
     guess_order = guess_order[:50]
     optimal_for_distr = 0.
     guessed.clear()
-    # guess_stack=random.sample(list(guesses), k=len(guesses))
     for (weight, guess, distr) in tqdm.tqdm(guess_order, unit="g", leave=False, postfix={'bound': upper_bound, 'words': len(answers)}):
         if upper_bound < len(answers):
             # Return if an optimal solution to bucket is found.
@@ -158,8 +156,7 @@ def get_any_better_guess(guesses, answers, beat, max_depth=6):
                 guess_tree[score] = (next_guess, tree)
             else:
                 guess_tree[score] = (next_guess)
-        # TODO: Track guess_total separately from upper_bound. Use upper_bound - 1 for the next
-        # guesses.
+        # Track guess_total separately from upper_bound. Use upper_bound - 1 for the next guesses.
         if guess_total < best_score:
             # This guess beat the current best.
             upper_bound = guess_total - 1
