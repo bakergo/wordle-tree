@@ -5,6 +5,7 @@ import random
 import math
 import functools
 import random
+import json
 
 SCOREMAP={}
 GUESSES=set()
@@ -64,7 +65,7 @@ def _bucket_small(guess:str, answers: set):
     return bucket_list
 
 
-def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root"):
+def get_any_better_guess(guesses, answers, beat, max_depth=6):
     """Returns a tree with the minimum total guesses required."""
     # Impossible benchmark, fail.
     if max_depth <= 0:
@@ -92,7 +93,7 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
     # bucket size.
     guessed = set()
     guess_order = []
-    for guess in tqdm.tqdm(guesses_in_question, unit="guess", leave=False, postfix="bucketing", ncols=120):
+    for guess in tqdm.tqdm(guesses_in_question, unit="g", leave=False, postfix={'state': "bucketing", 'words': len(answers), 'guesses': len(guesses_in_question), 'best': best_score}):
         if guess in guessed:
             continue
         guessed.add(guess)
@@ -104,14 +105,15 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
             # non-answer guesses, this will always find an optimal solution if it exists
             break
     answers_sorted = guess_order[:len(answers)]
+    answers_sorted.sort()
     guess_order = sorted(guess_order[len(answers):])
-    guess_order = answers_sorted + guess_order
     guess_order.sort()
+    guess_order = answers_sorted[:10] + guess_order[:50] + answers_sorted[10:50]
     guess_order = guess_order[:50]
     optimal_for_distr = 0.
     guessed.clear()
     # guess_stack=random.sample(list(guesses), k=len(guesses))
-    for (weight, guess, distr) in tqdm.tqdm(guess_order, unit="guess", leave=False, postfix=postfix, ncols=120):
+    for (weight, guess, distr) in tqdm.tqdm(guess_order, unit="g", leave=False, postfix={'bound': upper_bound, 'words': len(answers)}):
         if upper_bound < len(answers):
             # Return if an optimal solution to bucket is found.
             break
@@ -123,10 +125,9 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
         answered = 0
         for (score, next_words) in tqdm.tqdm(distr,
                                              total=len(distr),
-                                             unit="bucket",
+                                             unit="b",
                                              leave=False,
-                                             postfix="%s; best: %s" % (guess, best_guess),
-                                             ncols=120):
+                                             postfix={'guess': guess, 'best': best_guess}):
             next_guesses = guesses
             # Trim down the guess budget for the subcall based on the number of items in this
             # bucket. If each child takes on average upper_bound, we hit the budget.
@@ -142,8 +143,7 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
             elif guess_total + len(next_words) > upper_bound:
                 next_guess_total, next_guess, tree = (float('inf'), None, None)
             else:
-                next_guess_total, next_guess, tree = get_any_better_guess(next_guesses, next_words, budget, max_depth=max_depth-1, postfix="%s (%d words)" % (score, len(next_words)))
-
+                next_guess_total, next_guess, tree = get_any_better_guess(next_guesses, next_words, budget, max_depth=max_depth-1)
             if next_guess is None:
                 # This bucket is unsolveable in the budget and depth
                 guess_total = float('inf')
@@ -166,12 +166,20 @@ def get_any_better_guess(guesses, answers: set, beat, max_depth=6, postfix="root
             best_score = guess_total
             best_guess = guess
             best_tree = guess_tree
+            if max_depth == 6:
+                dump(best_score, best_guess, best_tree)
     return best_score, best_guess, best_tree
+
+
+def dump(score, guess, tree):
+    with open("%s.tree.txt" % guess, 'w') as f:
+        f.write("A solution exists for wordle in %d total guesses, with %s as the start.\n" % (score, guess))
+        f.write("The guess tree follows:\n")
+        json.dump([guess, tree], f, indent=2)
 
 
 def solve_wordle():
     depth,guess,tree = get_any_better_guess(GUESSES, ANSWERS, beat=float('inf'))
-    print("A solution exists for wordle in %d total guesses, with %s as the start." % (depth, guess))
     print("The guess tree follows:")
     print((guess, tree))
     print("A solution exists for wordle in %d total guesses, with %s as the start." % (depth, guess))
