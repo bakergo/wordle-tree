@@ -92,7 +92,7 @@ def get_any_better_guess(guesses, answers, beat, max_depth=6):
     # bucket size.
     guessed = set()
     guess_order = []
-    for guess in tqdm.tqdm(guesses_in_question, unit="g", leave=False, postfix={'state': "bucketing", 'words': len(answers), 'guesses': len(guesses_in_question), 'best': best_score}):
+    for guess in tqdm.tqdm(guesses_in_question, unit="g", leave=False, postfix={'state': "bucketing", 'words': len(answers), 'guesses': len(guesses_in_question)}):
         if guess in guessed:
             continue
         guessed.add(guess)
@@ -125,7 +125,7 @@ def get_any_better_guess(guesses, answers, beat, max_depth=6):
                                              total=len(distr),
                                              unit="b",
                                              leave=False,
-                                             postfix={'guess': guess, 'best': best_guess}):
+                                             postfix={'guess': guess, 'best': best_guess, 'best in': best_score}):
             next_guesses = guesses
             # Trim down the guess budget for the subcall based on the number of items in this
             # bucket. If each child takes on average upper_bound, we hit the budget.
