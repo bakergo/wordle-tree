@@ -11,6 +11,8 @@ SCOREMAP={}
 GUESSES=set()
 ANSWERS=set()
 
+MAX_DEPTH=5
+
 with open('guesses.txt', 'r') as f:
     for line in f:
         GUESSES.add(line.lower().strip())
@@ -65,7 +67,7 @@ def _bucket_small(guess:str, answers: set):
     return bucket_list
 
 
-def get_any_better_guess(guesses, answers, beat, max_depth=6):
+def get_any_better_guess(guesses, answers, beat, max_depth=MAX_DEPTH):
     """Returns a tree with the minimum total guesses required."""
     # Impossible benchmark, fail.
     if max_depth <= 0:
@@ -163,7 +165,7 @@ def get_any_better_guess(guesses, answers, beat, max_depth=6):
             best_score = guess_total
             best_guess = guess
             best_tree = guess_tree
-            if max_depth == 6:
+            if max_depth >= MAX_DEPTH:
                 dump(best_score, best_guess, best_tree)
     return best_score, best_guess, best_tree
 
