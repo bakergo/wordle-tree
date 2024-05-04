@@ -87,7 +87,7 @@ def get_any_better_guess(guesses, answers, beat, max_depth=MAX_DEPTH):
     # Randomly select some percentage of guesses along with up to 40 answers and rank those only.
     guesses_in_question = []
     guesses_in_question.extend(answers)
-    guesses_in_question.extend(random.sample(guesses, len(guesses)//10))
+    guesses_in_question.extend(random.sample(guesses, len(guesses)//2))
 
     # For each guess, break the answers down into buckets by guess, then
     # look for the most promising guess - the one with the lowest maximum

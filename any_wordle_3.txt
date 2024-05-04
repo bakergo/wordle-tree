@@ -1,4 +1,0 @@
-A solution exists for wordle in 4 guesses, with None as the start.
-The guess tree follows:
-{}
-A solution exists for wordle in 4 guesses, with None as the start.
